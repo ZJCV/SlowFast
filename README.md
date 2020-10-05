@@ -5,10 +5,10 @@
   <!-- <a title="俄语" href="../ru/README.md">🇷🇺</a> -->
 </div>
 
- <div align="center"><a title="" href="https://github.com/ZJCV/Non-local"><img align="center" src="./imgs/Non-local.png"></a></div>
+ <div align="center"><a title="" href="https://github.com/ZJCV/SlowFast"><img align="center" src="./imgs/SlowFast.png"></a></div>
 
 <p align="center">
-  «Non-local»复现了论文<a title="" href="https://arxiv.org/abs/1711.079719">Non-local Neural Networks</a>提出的视频分类模型
+  «SlowFast»复现了论文<a title="" href="https://arxiv.org/pdf/1812.03982.pdf">SlowFast Networks for Video Recognition</a>提出的视频分类模型
 <br>
 <br>
   <a href="https://github.com/RichardLitt/standard-readme"><img src="https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square"></a>
@@ -31,7 +31,6 @@
 
 ## 背景
 
-受到传统图像处理算法`non-local means`影响，[Non-local Neural Networks](https://arxiv.org/abs/1608.00859)提出了注意力模块`Non-local Block`
 
 ## 安装
 
@@ -63,7 +62,7 @@ $ export PYTHONPATH=.
 
 ## 参与贡献方式
 
-欢迎任何人的参与！打开[issue](https://github.com/ZJCV/Non-local/issues)或提交合并请求。
+欢迎任何人的参与！打开[issue](https://github.com/ZJCV/SlowFast/issues)或提交合并请求。
 
 注意:
 
