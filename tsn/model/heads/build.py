@@ -12,6 +12,7 @@ import torch.nn as nn
 from tsn.model import registry
 
 from .tsn_head import TSNHead
+from .nl_head import NLHead
 
 
 def build_head(cfg):
