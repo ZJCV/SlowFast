@@ -73,6 +73,7 @@ class ResNet3d(nn.Module):
                  dilations=(1, 1, 1, 1),
                  conv1_kernel=(1, 7, 7),
                  conv1_stride_t=2,
+                 pool1_kernel_t=3,
                  pool1_stride_t=2,
                  with_pool2=True,
                  inflates=(0, 0, 0, 0),
@@ -82,8 +83,7 @@ class ResNet3d(nn.Module):
                  act_layer=None,
                  zero_init_residual=True,
                  state_dict_2d=None,
-                 partial_bn=False,
-                 **kwargs):
+                 partial_bn=False):
         super().__init__()
         assert len(spatial_strides) == len(temporal_strides) == len(dilations) == len(inflates) == 4
         assert len(conv1_kernel) == 3
@@ -98,12 +98,16 @@ class ResNet3d(nn.Module):
         self.norm_layer = norm_layer
         self.act_layer = act_layer
         self.with_pool2 = with_pool2
-        self._make_stem_layer(in_channels, conv1_kernel, conv1_stride_t, pool1_stride_t)
+        self.base_channels = 64
+        self._make_stem_layer(in_channels, self.base_channels, conv1_kernel, conv1_stride_t, pool1_kernel_t,
+                              pool1_stride_t)
 
         block, stage_blocks = self.arch_settings[depth]
+        self.block = block
+        self.stage_blocks = stage_blocks
 
         self.res_layers = list()
-        self.inplanes = 64
+        self.inplanes = self.base_channels
         res_planes = [64, 128, 256, 512]
         for i in range(len(stage_blocks)):
             res_layer = self.make_res_layer(block,
@@ -116,9 +120,7 @@ class ResNet3d(nn.Module):
                                             inflate_style=inflate_style,
                                             non_local=non_local[i],
                                             norm_layer=self.norm_layer,
-                                            act_layer=self.act_layer,
-                                            **kwargs
-                                            )
+                                            act_layer=self.act_layer)
 
             layer_name = f'layer{i + 1}'
             self.add_module(layer_name, res_layer)
@@ -213,9 +215,11 @@ class ResNet3d(nn.Module):
 
             inflated_param_names = []
             for name, module in self.named_modules():
+                if 'non_local' in name:
+                    continue
                 if isinstance(module, nn.Conv3d):
                     _inflate_conv_params(module, state_dict_2d, name, inflated_param_names)
-                if isinstance(module, type(self.norm_layer)):
+                if isinstance(module, nn.modules.batchnorm._BatchNorm):
                     _inflate_bn_params(module, state_dict_2d, name, inflated_param_names)
 
             # check if any parameters in the 2d checkpoint are not loaded
@@ -235,8 +239,7 @@ class ResNet3d(nn.Module):
                        inflate_style='3x1x1',
                        non_local=0,
                        norm_layer=None,
-                       act_layer=None,
-                       **kwargs):
+                       act_layer=None):
         """Build residual layer for ResNet3D.
 
         Args:
@@ -315,25 +318,25 @@ class ResNet3d(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def _make_stem_layer(self, inplanes, conv1_kernel, conv1_stride_t, pool1_stride_t):
+    def _make_stem_layer(self, inplanes, planes, conv1_kernel, conv1_stride_t, pool1_kernel_t, pool1_stride_t):
         """Construct the stem layers consists of a conv+norm+act module and a
         pooling layer."""
         self.conv1 = convTxHxW(
             inplanes,
-            64,
+            planes,
             kernel_size=conv1_kernel,
             stride=(conv1_stride_t, 2, 2),
             padding=tuple([(k - 1) // 2 for k in _triple(conv1_kernel)]),
             bias=False
         )
 
-        self.bn1 = self.norm_layer(64)
+        self.bn1 = self.norm_layer(planes)
         self.relu = self.act_layer(inplace=True)
 
         self.maxpool = nn.MaxPool3d(
-            kernel_size=(2, 3, 3),
+            kernel_size=(pool1_kernel_t, 3, 3),
             stride=(pool1_stride_t, 2, 2),
-            padding=(0, 1, 1))
+            padding=(pool1_kernel_t // 2, 1, 1))
 
         self.pool2 = nn.MaxPool3d(kernel_size=(2, 1, 1), stride=(2, 1, 1))
 
