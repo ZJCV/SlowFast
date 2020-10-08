@@ -1,6 +1,6 @@
 DATASETS:
   MODALITY: 'RGB'
-  NUM_SEGS: 4
+  NUM_SEGS: 32
   TRAIN:
     NAME: 'UCF101'
     DATA_DIR: 'data/ucf101/rawframes'
@@ -18,8 +18,8 @@ TRANSFORM:
   MEAN: (0.485, 0.456, 0.406)
   STD: (0.229, 0.224, 0.225)
 DATALOADER:
-  TRAIN_BATCH_SIZE: 28
-  TEST_BATCH_SIZE: 28
+  TRAIN_BATCH_SIZE: 12
+  TEST_BATCH_SIZE: 12
   NUM_WORKERS: 8
 MODEL:
   NAME: 'NL'
@@ -27,14 +27,15 @@ MODEL:
   SYNC_BN: True
   INPUT_SIZE: (224, 224, 3)
   BACKBONE:
-    NAME: 'resnet3d_50_slowonly'
+    NAME: 'resnet3d_50_slowfast'
     PARTIAL_BN: False
     TORCHVISION_PRETRAINED: True
-    TYPE: 'SlowOnly'
-    LATERAL: False
+    TYPE: 'SlowFast'
+    LATERAL: True
     SPEED_RATIO: 8
     CHANNEL_RATIO: 8
     FUSION_KERNEL: 5
+    RESAMPLE_RATE: 8
     SLOW_PATHWAY:
       IN_CHANNELS: 3
       SPATIAL_STRIDES: (1, 2, 2, 2)
@@ -49,9 +50,23 @@ MODEL:
       INFLATES: (0, 0, 1, 1)
       INFLATE_STYLE: '3x1x1'
       NON_LOCAL: (0, 0, 0, 0)
+    FAST_PATHWAY:
+      IN_CHANNELS: 3
+      SPATIAL_STRIDES: (1, 2, 2, 2)
+      TEMPORAL_STRIDES: (1, 1, 1, 1)
+      DILATIONS: (1, 1, 1, 1)
+      BASE_CHANNEL: 8
+      CONV1_KERNEL: (5, 7, 7)
+      CONV1_STRIDE_T: 1
+      POOL1_KERNEL_T: 1
+      POOL1_STRIDE_T: 1
+      WITH_POOL2: False
+      INFLATES: (1, 1, 1, 1)
+      INFLATE_STYLE: '3x1x1'
+      NON_LOCAL: (0, 0, 0, 0)
   HEAD:
-    NAME: 'NLHead'
-    FEATURE_DIMS: 2048
+    NAME: 'SlowFastHead'
+    FEATURE_DIMS: 2304
     DROPOUT: 0.0
     NUM_CLASSES: 101
   RECOGNIZER:
@@ -75,4 +90,4 @@ LR_SCHEDULER:
 TRAIN:
   MAX_ITER: 50000
 OUTPUT:
-  DIR: 'outputs/slowonly_r3d50_ucf101_rgb_224x224x4'
+  DIR: 'outputs/slowfast_r3d50_ucf101_rgb_224x224x32'

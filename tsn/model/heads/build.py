@@ -13,6 +13,7 @@ from tsn.model import registry
 
 from .tsn_head import TSNHead
 from .nl_head import NLHead
+from .slowfast_head import SlowFastHead
 
 
 def build_head(cfg):

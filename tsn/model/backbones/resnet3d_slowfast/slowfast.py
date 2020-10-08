@@ -21,7 +21,6 @@ class SlowFast(nn.Module):
 
     Args:
         depth (int): Depth of resnet, from {18, 34, 50, 101, 152}.
-        pretrained (str): The file path to a pretrained model.
         resample_rate (int): A large temporal stride ``resample_rate``
             on input frames, corresponding to the :math:`\\tau` in the paper.
             i.e., it processes only one out of ``resample_rate`` frames.
@@ -57,7 +56,7 @@ class SlowFast(nn.Module):
     """
 
     def __init__(self,
-                 pretrained,
+                 *args,
                  resample_rate=8,
                  speed_ratio=8,
                  channel_ratio=8,
@@ -79,9 +78,9 @@ class SlowFast(nn.Module):
                      base_channels=8,
                      conv1_kernel=(5, 7, 7),
                      conv1_stride_t=1,
-                     pool1_stride_t=1)):
+                     pool1_stride_t=1),
+                 **kwargs):
         super().__init__()
-        self.pretrained = pretrained
         self.resample_rate = resample_rate
         self.speed_ratio = speed_ratio
         self.channel_ratio = channel_ratio
@@ -90,24 +89,8 @@ class SlowFast(nn.Module):
             slow_pathway['speed_ratio'] = speed_ratio
             slow_pathway['channel_ratio'] = channel_ratio
 
-        self.slow_path = ResNet3dPathway(slow_pathway)
-        self.fast_path = ResNet3dPathway(fast_pathway)
-
-    def init_weights(self):
-        """Initiate the parameters either from existing checkpoint or from
-        scratch."""
-        if isinstance(self.pretrained, str):
-            logger = get_root_logger()
-            msg = f'load model from: {self.pretrained}'
-            print_log(msg, logger=logger)
-            # Directly load 3D model.
-            load_checkpoint(self, self.pretrained, strict=True, logger=logger)
-        elif self.pretrained is None:
-            # Init two branch seperately.
-            self.fast_path.init_weights()
-            self.slow_path.init_weights()
-        else:
-            raise TypeError('pretrained must be a str or None')
+        self.slow_path = ResNet3dPathway(*args, **slow_pathway)
+        self.fast_path = ResNet3dPathway(*args, **fast_pathway)
 
     def forward(self, x):
         """Defines the computation performed at every call.
@@ -121,14 +104,18 @@ class SlowFast(nn.Module):
         """
         x_slow = x[:, :, ::self.resample_rate, :, :]
         x_slow = self.slow_path.conv1(x_slow)
+        x_slow = self.slow_path.bn1(x_slow)
+        x_slow = self.slow_path.relu(x_slow)
         x_slow = self.slow_path.maxpool(x_slow)
 
         x_fast = x[:, :, ::self.resample_rate // self.speed_ratio, :, :]
         x_fast = self.fast_path.conv1(x_fast)
+        x_fast = self.fast_path.bn1(x_fast)
+        x_fast = self.fast_path.relu(x_fast)
         x_fast = self.fast_path.maxpool(x_fast)
 
         if self.slow_path.lateral:
-            x_fast_lateral = self.slow_path.conv1_lateral(x_fast)
+            x_fast_lateral = self.slow_path.pool1_lateral(x_fast)
             x_slow = torch.cat((x_slow, x_fast_lateral), dim=1)
 
         for i, layer_name in enumerate(self.slow_path.res_layers):

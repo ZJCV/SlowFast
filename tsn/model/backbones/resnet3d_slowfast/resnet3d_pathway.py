@@ -7,8 +7,11 @@
 @description: 
 """
 
+import torch
 import torch.nn as nn
 
+from tsn.model.backbones.resnet3d.basic_block_3d import BasicBlock3d
+from tsn.model.backbones.resnet3d.bottleneck_3d import Bottleneck3d
 from tsn.model.backbones.resnet3d.resnet3d import ResNet3d
 from tsn.model.backbones.resnet3d.utility import convTxHxW
 from tsn.model.backbones.resnet3d_slowfast.conv_module import ConvModule
@@ -34,11 +37,13 @@ class ResNet3dPathway(ResNet3d):
 
     def __init__(self,
                  *args,
+                 type='slow',
                  lateral=False,
                  speed_ratio=8,
                  channel_ratio=8,
                  fusion_kernel=5,
                  **kwargs):
+        self.type = type
         self.lateral = lateral
         self.speed_ratio = speed_ratio
         self.channel_ratio = channel_ratio
@@ -57,11 +62,12 @@ class ResNet3dPathway(ResNet3d):
                                             act_layer=self.act_layer)
 
         self.lateral_connections = []
+        num_stages = len(self.stage_blocks)
         for i in range(len(self.stage_blocks)):
             planes = self.base_channels * 2 ** i
             self.inplanes = planes * self.block.expansion
 
-            if lateral and i != self.num_stages - 1:
+            if lateral and i != num_stages - 1:
                 # no lateral connection needed in final stage
                 lateral_name = f'layer{(i + 1)}_lateral'
                 setattr(
@@ -172,3 +178,116 @@ class ResNet3dPathway(ResNet3d):
                 ))
 
         return nn.Sequential(*layers)
+
+    def _init_weights(self, state_dict_2d):
+        for m in self.modules():
+            if isinstance(m, nn.Conv3d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm)):
+                if (
+                        hasattr(m, "transform_final_bn")
+                        and m.transform_final_bn
+                ):
+                    batchnorm_weight = 0.0
+                else:
+                    batchnorm_weight = 1.0
+
+                nn.init.constant_(m.weight, batchnorm_weight)
+                nn.init.constant_(m.bias, 0)
+
+        # Zero-initialize the last BN in each residual branch,
+        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+        if self.zero_init_residual:
+            for m in self.modules():
+                if isinstance(m, Bottleneck3d):
+                    nn.init.constant_(m.bn3.weight, 0)
+                elif isinstance(m, BasicBlock3d):
+                    nn.init.constant_(m.bn2.weight, 0)
+
+        if state_dict_2d and self.type == 'slow':
+
+            def _inflate_conv_params(conv3d, state_dict_2d, module_name_2d,
+                                     inflated_param_names):
+                """Inflate a conv module from 2d to 3d.
+
+                The differences of conv modules betweene 2d and 3d in Pathway
+                mainly lie in the inplanes due to lateral connections. To fit the
+                shapes of the lateral connection counterpart, it will expand
+                parameters by concatting conv2d parameters and extra zero paddings.
+
+                Args:
+                    conv3d (nn.Module): The destination conv3d module.
+                    state_dict_2d (OrderedDict): The state dict of pretrained 2d model.
+                    module_name_2d (str): The name of corresponding conv module in the
+                        2d model.
+                    inflated_param_names (list[str]): List of parameters that have been
+                        inflated.
+                """
+                weight_2d_name = module_name_2d + '.weight'
+                conv2d_weight = state_dict_2d[weight_2d_name]
+                old_shape = conv2d_weight.shape
+                new_shape = conv3d.weight.data.shape
+                kernel_t = new_shape[2]
+                if new_shape[1] != old_shape[1]:
+                    # Inplanes may be different due to lateral connections
+                    new_channels = new_shape[1] - old_shape[1]
+                    pad_shape = old_shape
+                    pad_shape = pad_shape[:1] + (new_channels,) + pad_shape[2:]
+                    # Expand parameters by concat extra channels
+                    conv2d_weight = torch.cat(
+                        (conv2d_weight,
+                         torch.zeros(pad_shape).type_as(conv2d_weight).to(
+                             conv2d_weight.device)),
+                        dim=1)
+                new_weight = conv2d_weight.data.unsqueeze(2).expand_as(
+                    conv3d.weight) / kernel_t
+                conv3d.weight.data.copy_(new_weight)
+                inflated_param_names.append(weight_2d_name)
+
+                if getattr(conv3d, 'bias') is not None:
+                    bias_2d_name = module_name_2d + '.bias'
+                    conv3d.bias.data.copy_(state_dict_2d[bias_2d_name])
+                    inflated_param_names.append(bias_2d_name)
+
+            def _inflate_bn_params(bn3d, state_dict_2d, module_name_2d,
+                                   inflated_param_names):
+                """Inflate a norm module from 2d to 3d.
+
+                Args:
+                    bn3d (nn.Module): The destination bn3d module.
+                    state_dict_2d (OrderedDict): The state dict of pretrained 2d model.
+                    module_name_2d (str): The name of corresponding bn module in the
+                        2d model.
+                    inflated_param_names (list[str]): List of parameters that have been
+                        inflated.
+                """
+                for param_name, param in bn3d.named_parameters():
+                    param_2d_name = f'{module_name_2d}.{param_name}'
+                    param_2d = state_dict_2d[param_2d_name]
+                    param.data.copy_(param_2d)
+                    inflated_param_names.append(param_2d_name)
+
+                for param_name, param in bn3d.named_buffers():
+                    param_2d_name = f'{module_name_2d}.{param_name}'
+                    # some buffers like num_batches_tracked may not exist in old
+                    # checkpoints
+                    if param_2d_name in state_dict_2d:
+                        param_2d = state_dict_2d[param_2d_name]
+                        param.data.copy_(param_2d)
+                        inflated_param_names.append(param_2d_name)
+
+            inflated_param_names = []
+            for name, module in self.named_modules():
+                if 'non_local' in name:
+                    continue
+                if isinstance(module, nn.Conv3d):
+                    _inflate_conv_params(module, state_dict_2d, name, inflated_param_names)
+                if isinstance(module, nn.modules.batchnorm._BatchNorm):
+                    _inflate_bn_params(module, state_dict_2d, name, inflated_param_names)
+
+            # check if any parameters in the 2d checkpoint are not loaded
+            remaining_names = set(
+                state_dict_2d.keys()) - set(inflated_param_names)
+            if remaining_names:
+                print(f'These parameters in the 2d checkpoint are not loaded: {remaining_names}')
