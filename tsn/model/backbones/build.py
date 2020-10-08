@@ -11,6 +11,7 @@ import torch.nn as nn
 
 from .resnet.build_resnet import resnet50
 from .resnet3d.build_resnet3d import resnet3d_50
+from .resnet3d_slowfast.build_slowonly import resnet3d_50_slowonly
 from tsn.model import registry
 
 
