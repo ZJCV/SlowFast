@@ -71,6 +71,7 @@ class ResNet3d(nn.Module):
                  spatial_strides=(1, 2, 2, 2),
                  temporal_strides=(1, 1, 1, 1),
                  dilations=(1, 1, 1, 1),
+                 base_channel=64,
                  conv1_kernel=(1, 7, 7),
                  conv1_stride_t=2,
                  pool1_kernel_t=3,
@@ -98,7 +99,7 @@ class ResNet3d(nn.Module):
         self.norm_layer = norm_layer
         self.act_layer = act_layer
         self.with_pool2 = with_pool2
-        self.base_channels = 64
+        self.base_channels = base_channel
         self._make_stem_layer(in_channels, self.base_channels, conv1_kernel, conv1_stride_t, pool1_kernel_t,
                               pool1_stride_t)
 
@@ -108,7 +109,7 @@ class ResNet3d(nn.Module):
 
         self.res_layers = list()
         self.inplanes = self.base_channels
-        res_planes = [64, 128, 256, 512]
+        res_planes = [base_channel, base_channel * 2, base_channel * 2 * 2, base_channel * 2 * 2 * 2]
         for i in range(len(stage_blocks)):
             res_layer = self.make_res_layer(block,
                                             res_planes[i],
