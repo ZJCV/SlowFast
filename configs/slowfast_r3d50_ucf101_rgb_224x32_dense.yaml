@@ -1,6 +1,9 @@
 DATASETS:
   MODALITY: 'RGB'
-  NUM_SEGS: 32
+  SAMPLE_STRATEGY: 'DenseSample'
+  CLIP_LEN: 1
+  FRAME_INTERVAL: 2
+  NUM_CLIPS: 32
   TRAIN:
     NAME: 'UCF101'
     DATA_DIR: 'data/ucf101/rawframes'
@@ -17,6 +20,8 @@ TRANSFORM:
   JITTER_SCALES: (256, 320)
   MEAN: (0.485, 0.456, 0.406)
   STD: (0.229, 0.224, 0.225)
+  RANDOM_ROTATION: 10
+  COLOR_JITTER: (0.1, 0.1, 0.1, 0.1)
 DATALOADER:
   TRAIN_BATCH_SIZE: 12
   TEST_BATCH_SIZE: 12
@@ -30,6 +35,7 @@ MODEL:
     NAME: 'resnet3d_50_slowfast'
     PARTIAL_BN: False
     TORCHVISION_PRETRAINED: True
+    ZERO_INIT_RESIDUAL: True
     TYPE: 'SlowFast'
     LATERAL: True
     SPEED_RATIO: 8
@@ -75,7 +81,7 @@ MODEL:
     NAME: 'crossentropy'
 OPTIMIZER:
   NAME: 'sgd'
-  LR: 2e-3
+  LR: 1e-2
   WEIGHT_DECAY: 3e-4
   SGD:
     MOMENTUM: 0.9
@@ -90,4 +96,4 @@ LR_SCHEDULER:
 TRAIN:
   MAX_ITER: 50000
 OUTPUT:
-  DIR: 'outputs/slowfast_r3d50_ucf101_rgb_224x224x32'
+  DIR: 'outputs/slowfast_r3d50_ucf101_rgb_224x32_dense'
