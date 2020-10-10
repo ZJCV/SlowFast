@@ -29,7 +29,7 @@ model_urls = {
 
 
 def _resnet(arch, cfg, map_location=None):
-    pretrained2d = cfg.MODEL.PRETRAINED
+    pretrained2d = cfg.MODEL.BACKBONE.TORCHVISION_PRETRAINED
     state_dict_2d = None
     if pretrained2d:
         state_dict_2d = load_state_dict_from_url(model_urls[arch],
@@ -50,6 +50,7 @@ def _resnet(arch, cfg, map_location=None):
     inflates = cfg.MODEL.BACKBONE.INFLATES
     inflate_style = cfg.MODEL.BACKBONE.INFLATE_STYLE
     non_local = cfg.MODEL.BACKBONE.NON_LOCAL
+    zero_init_residual = cfg.MODEL.BACKBONE.ZERO_INIT_RESIDUAL
     model = ResNet3d(arch,
                      in_channels=in_channels,
                      spatial_strides=spatial_strides,
@@ -64,7 +65,7 @@ def _resnet(arch, cfg, map_location=None):
                      inflates=inflates,
                      inflate_style=inflate_style,
                      non_local=non_local,
-                     zero_init_residual=True,
+                     zero_init_residual=zero_init_residual,
                      state_dict_2d=state_dict_2d)
     return model
 

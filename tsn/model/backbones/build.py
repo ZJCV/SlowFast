@@ -7,12 +7,8 @@
 @description: 
 """
 
-import torch.nn as nn
-
 from .resnet.build_resnet import resnet50
 from .resnet3d.build_resnet3d import resnet3d_50
-from .resnet3d_slowfast.build_slowonly import resnet3d_50_slowonly
-from .resnet3d_slowfast.build_slowfast import resnet3d_50_slowfast
 from tsn.model import registry
 
 
@@ -22,5 +18,6 @@ def build_backbone(cfg, map_location=None):
     else:
         return registry.BACKBONE[cfg.MODEL.BACKBONE.NAME] \
             (pretrained=cfg.MODEL.BACKBONE.TORCHVISION_PRETRAINED,
+             zero_init_residual=cfg.MODEL.BACKBONE.ZERO_INIT_RESIDUAL,
              partial_bn=cfg.MODEL.BACKBONE.PARTIAL_BN,
              map_location=map_location)

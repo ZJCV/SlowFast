@@ -26,9 +26,8 @@ class NLRecognizer(nn.Module):
 
     def forward(self, imgs):
         assert len(imgs.shape) == 5
-        N, T, C, H, W = imgs.shape[:5]
+        N, C, T, H, W = imgs.shape[:5]
 
-        imgs = imgs.transpose(1, 2)
         features = self.backbone(imgs)
         outputs = self.head(features)
 

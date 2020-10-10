@@ -227,7 +227,7 @@ class ResNet3d(nn.Module):
             remaining_names = set(
                 state_dict_2d.keys()) - set(inflated_param_names)
             if remaining_names:
-                print(f'These parameters in the 2d checkpoint are not loaded: {remaining_names}')
+                print(f'These parameters in the 2d checkpoint are not loaded: {sorted(remaining_names)}')
 
     def make_res_layer(self,
                        block,
