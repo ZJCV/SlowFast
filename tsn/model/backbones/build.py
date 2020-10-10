@@ -9,6 +9,8 @@
 
 from .resnet.build_resnet import resnet50
 from .resnet3d.build_resnet3d import resnet3d_50
+from .resnet3d_slowfast.build_slowonly import resnet3d_50_slowonly
+from .resnet3d_slowfast.build_slowfast import resnet3d_50_slowfast
 from tsn.model import registry
 
 
